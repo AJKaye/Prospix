@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Custom Org Chart Builder</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      display: flex;
+      height: 100vh;
+      margin: 0;
+    }
+    /* Sidebar for Team Tabs */
+    #sidebar {
+      width: 200px;
+      background-color: #f4f4f4;
+      border-right: 1px solid #ccc;
+      padding: 10px;
+      box-sizing: border-box;
+      overflow-y: auto;
+    }
+    #sidebar h2 {
+      font-size: 18px;
+      margin-top: 0;
+    }
+    .team-tab {
+      padding: 10px;
+      margin-bottom: 5px;
+      background-color: #fff;
+      border: 1px solid #ccc;
+      cursor: pointer;
+      border-radius: 3px;
+    }
+    .team-tab.active {
+      background-color: #0078D7;
+      color: #fff;
+    }
+    /* Main Content Area */
+    #main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      padding: 10px;
+      box-sizing: border-box;
+      overflow: hidden;
+    }
+    /* Visual Component */
+    #visualComponent {
+      flex: 3;
+      border: 1px solid #ccc;
+      padding: 10px;
+      overflow-y: auto;
+      position: relative;
+    }
+    .manager-box {
+      background-color: #0078D7;
+      color: #fff;
+      padding: 10px;
+      border-radius: 5px;
+      margin-bottom: 10px;
+    }
+    .employee-box {
+      background-color: #e1e1e1;
+      color: #000;
+      padding: 8px;
+      border-radius: 3px;
+      margin: 5px 0;
+    }
+    /* Builder Component */
+    #builderComponent {
+      flex: 2;
+      border: 1px solid #ccc;
+      padding: 10px;
+      margin-top: 10px;
+      overflow-y: auto;
+    }
+    #builderComponent h3 {
+      margin-top: 0;
+    }
+    .form-group {
+      margin-bottom: 10px;
+    }
+    .form-group label {
+      display: block;
+      margin-bottom: 3px;
+    }
+    .form-group input, .form-group select {
+      width: 100%;
+      padding: 5px;
+      box-sizing: border-box;
+    }
+    .form-group button {
+      padding: 7px 15px;
+      background-color: #0078D7;
+      color: #fff;
+      border: none;
+      border-radius: 3px;
+      cursor: pointer;
+    }
+    .form-group button:hover {
+      background-color: #005a9e;
+    }
+    /* Add Team Button */
+    #addTeamBtn {
+      width: 100%;
+      padding: 10px;
+      margin-top: 10px;
+      background-color: #28a745;
+      color: #fff;
+      border: none;
+      border-radius: 3px;
+      cursor: pointer;
+    }
+    #addTeamBtn:hover {
+      background-color: #218838;
+    }
+  </style>
+</head>
+<body>
+  <div id="sidebar">
+    <h2>Teams</h2>
+    <div id="teamTabs">
+      <!-- Team tabs will be dynamically added here -->
+    </div>
+    <!-- Add Team Button -->
+    <button id="addTeamBtn" onclick="showForm('addTeamForm')">Add New Team</button>
+  </div>
+  <div id="main">
+    <div id="visualComponent">
+      <!-- Organizational Chart Display -->
+      <div id="orgChartDisplay">
+        <p>Select a team to view its structure.</p>
+      </div>
+    </div>
+    <div id="builderComponent">
+      <h3>Builder</h3>
+      <!-- Forms to Add Teams, Managers, Employees -->
+      <div id="addTeamForm" style="display: none;">
+        <h4>Add New Team</h4>
+        <div class="form-group">
+          <label for="newTeamName">Team Name:</label>
+          <input type="text" id="newTeamName" placeholder="Enter team name">
+        </div>
+        <div class="form-group">
+          <button onclick="submitNewTeam()">Submit Team</button>
+        </div>
+      </div>
+      <div id="addManagerForm" style="display: none;">
+        <h4>Add New Manager</h4>
+        <div class="form-group">
+          <label for="managerName">Manager Name:</label>
+          <input type="text" id="managerName" placeholder="Enter manager name">
+        </div>
+        <div class="form-group">
+          <label for="managerTeam">Select Team:</label>
+          <select id="managerTeam">
+            <!-- Team options will be dynamically added here -->
+          </select>
+        </div>
+        <div class="form-group">
+          <button onclick="submitNewManager()">Submit Manager</button>
+        </div>
+      </div>
+      <div id="addEmployeeForm" style="display: none;">
+        <h4>Add New Employee</h4>
+        <div class="form-group">
+          <label for="employeeName">Employee Name:</label>
+          <input type="text" id="employeeName" placeholder="Enter employee name">
+        </div>
+        <div class="form-group">
+          <label for="employeeTeam">Select Team:</label>
+          <select id="employeeTeam">
+            <!-- Team options will be dynamically added here -->
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="employeeManager">Select Manager:</label>
+          <select id="employeeManager">
+            <!-- Manager options will be dynamically added here -->
+          </select>
+        </div>
+        <div class="form-group">
+          <button onclick="submitNewEmployee()">Submit Employee</button>
+        </div>
+      </div>
+      <!-- Buttons to Show Forms -->
+      <button onclick="showForm('addManagerForm')">Add Manager</button>
+      <button onclick="showForm('addEmployeeForm')">Add Employee</button>
+    </div>
+  </div>
+
+  <script>
+    // Organizational Data Structure
+    let orgData = {
+      teams: [],
+      managers: [],
+      employees: []
+    };
+
+    // Current Selected Team
+    let currentTeam = null;
+
+    // Admin Status
+    let isAdmin = false;
+
+    // Initialize on Load
+    window.onload = function() {
+      // Request to load existing org chart data from Wix
+      parent.postMessage({ type: "loadOrgChart" }, "*");
+    };
+
+    // Listen for messages from Wix
+    window.addEventListener("message", function(event) {
+      if (event.data.type === "loadData") {
+        orgData = event.data.payload || { teams: [], managers: [], employees: [] };
+        renderTeamTabs();
+        populateTeamOptions();
+        if (currentTeam) {
+          displayTeam(currentTeam);
+        }
+      } else if (event.data.type === "saveResponse") {
+        if (event.data.payload.success) {
+          alert("Org Chart saved successfully!");
+        } else {
+          alert("Error saving Org Chart: " + event.data.payload.error);
+        }
+      } else if (event.data.type === "setAdminStatus") {
+        isAdmin = event.data.payload.isAdmin;
+        updateUIBasedOnAdmin();
+      }
+    });
+
+    // Function to Update UI Based on Admin Status
+    function updateUIBasedOnAdmin() {
+      const builderButtons = document.querySelectorAll("#builderComponent button");
+      builderButtons.forEach(button => {
+        if (button.id === "addTeamBtn") return; // Always show Add Team button
+        button.style.display = isAdmin ? "inline-block" : "none";
+      });
+
+      // Hide Builder Forms if Not Admin
+      if (!isAdmin) {
+        document.getElementById("addTeamForm").style.display = "none";
+        document.getElementById("addManagerForm").style.display = "none";
+        document.getElementById("addEmployeeForm").style.display = "none";
+      }
+    }
+
+    // Function to Render Team Tabs
+    function renderTeamTabs() {
+      const teamTabsDiv = document.getElementById("teamTabs");
+      teamTabsDiv.innerHTML = "";
+      orgData.teams.forEach(team => {
+        const tab = document.createElement("div");
+        tab.className = "team-tab";
+        tab.innerText = team.name;
+        tab.onclick = () => selectTeam(team.name);
+        teamTabsDiv.appendChild(tab);
+      });
+    }
+
+    // Function to Select a Team
+    function selectTeam(teamName) {
+      currentTeam = teamName;
+      // Highlight Active Tab
+      document.querySelectorAll(".team-tab").forEach(tab => {
+        if (tab.innerText === teamName) {
+          tab.classList.add("active");
+        } else {
+          tab.classList.remove("active");
+        }
+      });
+      // Display Team Structure
+      displayTeam(teamName);
+    }
+
+    // Function to Display Team Structure
+    function displayTeam(teamName) {
+      const orgChartDisplay = document.getElementById("orgChartDisplay");
+      orgChartDisplay.innerHTML = "";
+
+      const team = orgData.teams.find(t => t.name === teamName);
+      if (!team) {
+        orgChartDisplay.innerHTML = "<p>Team not found.</p>";
+        return;
+      }
+
+      // Find Managers of the Team
+      const managers = orgData.managers.filter(m => m.team === teamName);
+      managers.forEach(manager => {
+        // Manager Box
+        const managerBox = document.createElement("div");
+        managerBox.className = "manager-box";
+        managerBox.innerText = manager.name + " (" + manager.title + ")";
+        orgChartDisplay.appendChild(managerBox);
+
+        // Employees under Manager
+        const employees = orgData.employees.filter(e => e.team === teamName && e.managerId === manager.id);
+        employees.forEach(employee => {
+          const employeeBox = document.createElement("div");
+          employeeBox.className = "employee-box";
+          employeeBox.style.marginLeft = "20px";
+          employeeBox.innerText = employee.name + " (" + employee.title + ")";
+          orgChartDisplay.appendChild(employeeBox);
+        });
+      });
+
+      if (managers.length === 0) {
+        orgChartDisplay.innerHTML = "<p>No managers found for this team.</p>";
+      }
+    }
+
+    // Function to Show Specific Form
+    function showForm(formId) {
+      if (!isAdmin) {
+        alert("You do not have permission to modify the org chart.");
+        return;
+      }
+      // Hide all forms
+      document.getElementById("addTeamForm").style.display = "none";
+      document.getElementById("addManagerForm").style.display = "none";
+      document.getElementById("addEmployeeForm").style.display = "none";
+      // Show selected form
+      document.getElementById(formId).style.display = "block";
+    }
+
+    // Function to Submit New Team
+    function submitNewTeam() {
+      const teamName = document.getElementById("newTeamName").value.trim();
+      if (teamName === "") {
+        alert("Team name cannot be empty.");
+        return;
+      }
+      // Check for duplicate team name
+      if (orgData.teams.find(t => t.name === teamName)) {
+        alert("Team name already exists.");
+        return;
+      }
+      // Add to orgData
+      orgData.teams.push({ id: Date.now(), name: teamName });
+      // Reset form
+      document.getElementById("newTeamName").value = "";
+      document.getElementById("addTeamForm").style.display = "none";
+      // Refresh UI
+      renderTeamTabs();
+      populateTeamOptions();
+      // Save Data
+      parent.postMessage({ type: "saveOrgChart", payload: orgData }, "*");
+    }
+
+    // Function to Submit New Manager
+    function submitNewManager() {
+      const managerName = document.getElementById("managerName").value.trim();
+      const managerTeam = document.getElementById("managerTeam").value;
+      if (managerName === "" || managerTeam === "") {
+        alert("All fields are required.");
+        return;
+      }
+      // Check if manager already exists in the team
+      if (orgData.managers.find(m => m.name === managerName && m.team === managerTeam)) {
+        alert("Manager already exists in this team.");
+        return;
+      }
+      // Add to orgData
+      orgData.managers.push({ id: Date.now(), name: managerName, title: "Manager", team: managerTeam });
+      // Reset form
+      document.getElementById("managerName").value = "";
+      document.getElementById("managerTeam").selectedIndex = 0;
+      document.getElementById("addManagerForm").style.display = "none";
+      // Refresh UI
+      if (currentTeam === managerTeam) {
+        displayTeam(managerTeam);
+      }
+      // Populate Managers Dropdown
+      populateManagerOptions(managerTeam);
+      // Save Data
+      parent.postMessage({ type: "saveOrgChart", payload: orgData }, "*");
+    }
+
+    // Function to Submit New Employee
+    function submitNewEmployee() {
+      const employeeName = document.getElementById("employeeName").value.trim();
+      const employeeTeam = document.getElementById("employeeTeam").value;
+      const employeeManagerId = parseInt(document.getElementById("employeeManager").value);
+      if (employeeName === "" || employeeTeam === "" || isNaN(employeeManagerId)) {
+        alert("All fields are required.");
+        return;
+      }
+      // Add to orgData
+      orgData.employees.push({ id: Date.now(), name: employeeName, title: "Employee", team: employeeTeam, managerId: employeeManagerId });
+      // Reset form
+      document.getElementById("employeeName").value = "";
+      document.getElementById("employeeTeam").selectedIndex = 0;
+      document.getElementById("employeeManager").selectedIndex = 0;
+      document.getElementById("addEmployeeForm").style.display = "none";
+      // Refresh UI
+      if (currentTeam === employeeTeam) {
+        displayTeam(employeeTeam);
+      }
+      // Save Data
+      parent.postMessage({ type: "saveOrgChart", payload: orgData }, "*");
+    }
+
+    // Function to Populate Team Options in Forms
+    function populateTeamOptions() {
+      const managerTeamSelect = document.getElementById("managerTeam");
+      const employeeTeamSelect = document.getElementById("employeeTeam");
+      managerTeamSelect.innerHTML = "<option value=''>Select Team</option>";
+      employeeTeamSelect.innerHTML = "<option value=''>Select Team</option>";
+      orgData.teams.forEach(team => {
+        const option1 = document.createElement("option");
+        option1.value = team.name;
+        option1.innerText = team.name;
+        managerTeamSelect.appendChild(option1);
+
+        const option2 = document.createElement("option");
+        option2.value = team.name;
+        option2.innerText = team.name;
+        employeeTeamSelect.appendChild(option2);
+      });
+    }
+
+    // Function to Populate Manager Options in Employee Form
+    document.getElementById("employeeTeam").addEventListener("change", function() {
+      const selectedTeam = this.value;
+      const managerSelect = document.getElementById("employeeManager");
+      managerSelect.innerHTML = "<option value=''>Select Manager</option>";
+      if (selectedTeam === "") return;
+      const managers = orgData.managers.filter(m => m.team === selectedTeam);
+      managers.forEach(manager => {
+        const option = document.createElement("option");
+        option.value = manager.id;
+        option.innerText = manager.name;
+        managerSelect.appendChild(option);
+      });
+    });
+
+    // Helper Function to Populate Managers Dropdown (if needed)
+    function populateManagerOptions(teamName) {
+      const employeeManagerSelect = document.getElementById("employeeManager");
+      employeeManagerSelect.innerHTML = "<option value=''>Select Manager</option>";
+      const managers = orgData.managers.filter(m => m.team === teamName);
+      managers.forEach(manager => {
+        const option = document.createElement("option");
+        option.value = manager.id;
+        option.innerText = manager.name;
+        employeeManagerSelect.appendChild(option);
+      });
+    }
+  </script>
+</body>
+</html>
